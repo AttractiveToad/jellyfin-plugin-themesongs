@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Theme Songs</title>
+</head>
+<body>
+<div id="ThemeSongsConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+    <div data-role="content">
+        <div class="content-primary">
+            <div class="sectionTitleContainer">
+                <h2 class="sectionTitle">Theme Songs</h2>
+            </div>
+
+            <div class="section">
+                <p>Download missing theme songs for all movies and TV series in your library.</p>
+
+                <div class="buttonContainer">
+                    <button id="startTaskButton" is="emby-button" type="button" class="raised button-submit block emby-button" onclick=download()>
+                        <span>Start Download</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+    <script type="text/javascript">
+        function download() {
+            var request = {
+                url: ApiClient.getUrl('/ThemeSongs/DownloadThemeSongs'),
+                type: 'POST'
+            };
+
+            ApiClient.fetch(request).then(function () {
+                Dashboard.alert("Downloading Theme Songs");
+            }).catch(function () {
+                Dashboard.alert({message: "Error downloading Theme Songs"});
+            });
+        }
+    </script>
+
+</div>
+</body>
+</html>

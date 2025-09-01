@@ -107,7 +107,7 @@ jobs:
             > ./publish_output/meta.json
 
           cd ./publish_output
-          zip -r "../artifacts/${ZIP_NAME}" Jellyfin.Plugin.ThemeSongs.dll meta.json
+          zip -r "../artifacts/${ZIP_NAME}" *.dll meta.json
           cd ..
           
           echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_OUTPUT
@@ -147,52 +147,103 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
-    needs: [build, release]
+    # This job needs the 'release' job to finish and the 'build' job for its outputs.
+    needs: [ build, release ]
     runs-on: ubuntu-latest
     permissions:
+      # This permission is required to push a commit back to the repository.
       contents: write
     steps:
-      - name: Checkout
+      # Step 1: Check out the repository again, this time targeting your default branch.
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          ref: "main"
+          # Checkout the 'master' branch to push the manifest update.
+          ref: "master"
 
+      # Step 2: Download the build artifacts again to get the .zip filename.
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
           name: build-artifact
 
-      - name: Update meta.json
+      # Step 3: Update manifest.json using jq for reliability
+      - name: Update manifest.json
         env:
           RELEASE_TAG: ${{ needs.build.outputs.tag }}
           ZIP_NAME: ${{ needs.build.outputs.zip_name }}
           TARGET_ABI: ${{ needs.build.outputs.target_abi }}
         run: |
+          set -ex # Exit immediately if a command fails and print each command.
+          
+          # --- Define constants and variables ---
           VERSION_WITH_PRERELEASE=${RELEASE_TAG#v}
           VERSION=${VERSION_WITH_PRERELEASE%%-*}
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${ZIP_NAME}"
+          PLUGIN_GUID="ddb5eacb-4557-4882-a9b6-d6a91f8d1ebd"
           
+          echo "Processing release tag: ${RELEASE_TAG}"
+          echo "Clean version for manifest update is: $VERSION"
+          echo "Using Target ABI from build file: $TARGET_ABI"
+          
+          # --- Construct the download URL manually to avoid API race conditions ---
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${ZIP_NAME}"
+          echo "Constructed download URL: ${DOWNLOAD_URL}"
+          
+          # --- Get other required data for the new manifest entry ---
           ZIP_FILE=$(find . -maxdepth 1 -name "*.zip")
+          echo "Found ZIP file: $ZIP_FILE"
+          
           CHECKSUM=$(md5sum "$ZIP_FILE" | cut -d' ' -f1)
+          echo "Calculated MD5 Checksum: $CHECKSUM"
+          
           CHANGELOG=$(cat changelog.md)
+          echo "Read changelog."
+          
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-          jq \
+          echo "Generated timestamp: $TIMESTAMP"
+          
+          echo "--- Manifest content BEFORE update ---"
+          cat ./manifest.json
+          echo "------------------------------------"
+          
+          # --- Create the new version object as a JSON string ---
+          # We append ".0" to the version to match the 4-part version scheme if needed.
+          NEW_VERSION_JSON=$(jq -n \
             --arg version "$VERSION.0" \
             --arg changelog "$CHANGELOG" \
             --arg targetAbi "$TARGET_ABI" \
             --arg sourceUrl "$DOWNLOAD_URL" \
             --arg checksum "$CHECKSUM" \
             --arg timestamp "$TIMESTAMP" \
-            '. + {version: $version, changelog: $changelog, targetAbi: $targetAbi, sourceUrl: $sourceUrl, checksum: $checksum, timestamp: $timestamp}' \
-            meta.json > meta.tmp && mv meta.tmp meta.json
+            '{version: $version, changelog: $changelog, targetAbi: $targetAbi, sourceUrl: $sourceUrl, checksum: $checksum, timestamp: $timestamp}')
+          
+          # --- Update the manifest file in place using jq ---
+          # 1. Find the object in the top-level array with the correct guid.
+          # 2. Update its 'versions' array by:
+          #    a. Filtering out any existing version that matches the new one.
+          #    b. Prepending the new version object to the start of the array.
+          jq \
+            --argjson newVersion "$NEW_VERSION_JSON" \
+            --arg version_str "$VERSION.0" \
+            --arg guid "$PLUGIN_GUID" \
+            '(map(if .guid == $guid then .versions |= (map(select(.version != $version_str)) | [$newVersion] + .) else . end))' \
+            manifest.json > manifest.tmp && mv manifest.tmp manifest.json
+          
+          echo "--- Manifest content AFTER update ---"
+          cat ./manifest.json
+          echo "-----------------------------------"
 
-      - name: Commit Changes
+      # Step 4: Commit and push the updated manifest.json
+      - name: Commit and Push manifest.json
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add meta.json
-          if ! git diff --staged --quiet; then
-            git commit -m "ci: Update meta.json for release ${{ needs.build.outputs.tag }}"
+          git add manifest.json
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            echo "Committing updated manifest.json"
+            git commit -m "ci: Update manifest.json for release ${{ needs.build.outputs.tag }}"
             git push
           fi

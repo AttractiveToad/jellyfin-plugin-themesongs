@@ -1,1 +1,3 @@
 # jellyfin-plugin-themesongs
+
+test

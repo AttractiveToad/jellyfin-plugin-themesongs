@@ -147,27 +147,21 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
-    # This job needs the 'release' job to finish and the 'build' job for its outputs.
     needs: [ build, release ]
     runs-on: ubuntu-latest
     permissions:
-      # This permission is required to push a commit back to the repository.
       contents: write
     steps:
-      # Step 1: Check out the repository again, this time targeting your default branch.
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          # Checkout the 'master' branch to push the manifest update.
-          ref: "master"
+          ref: "main"
 
-      # Step 2: Download the build artifacts again to get the .zip filename.
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
           name: build-artifact
 
-      # Step 3: Update manifest.json using jq for reliability
       - name: Update manifest.json
         env:
           RELEASE_TAG: ${{ needs.build.outputs.tag }}
@@ -233,7 +227,6 @@ jobs:
           cat ./manifest.json
           echo "-----------------------------------"
 
-      # Step 4: Commit and push the updated manifest.json
       - name: Commit and Push manifest.json
         run: |
           git config --global user.name "github-actions[bot]"

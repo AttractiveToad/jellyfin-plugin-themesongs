@@ -32,7 +32,7 @@ This plugin enhances your Jellyfin experience by automatically downloading theme
 After installation:
 
 1. Go to **Dashboard** > **Plugins** > **Theme Songs**
-2. Click on **Start Donwnload** to trigger a manual library theme song scan/download. 
+2. Click on **Start Donwnload** to trigger a manual library theme song scan/download.
 
 The plugin will automatically scan your library every 12 hours.
 

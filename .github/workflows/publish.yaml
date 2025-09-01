@@ -1,0 +1,198 @@
+name: '🚀 Publish Plugin'
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag to build (e.g. v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.get_tag.outputs.TAG }}
+      zip_name: ${{ steps.package_plugin.outputs.ZIP_NAME }}
+      target_abi: ${{ steps.get_abi.outputs.TARGET_ABI }}
+    steps:
+      - name: Determine Tag
+        id: get_tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "TAG=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.get_tag.outputs.TAG }}
+          fetch-depth: '0'
+
+      - name: Get .NET Version
+        id: get_dotnet_version
+        run: |
+          FRAMEWORK_FULL_VERSION=$(grep 'framework:' ./build.yaml | cut -d'"' -f2)
+          DOTNET_VERSION=$(echo $FRAMEWORK_FULL_VERSION | sed 's/net//')
+          echo "DOTNET_VERSION=${DOTNET_VERSION}.x" >> $GITHUB_OUTPUT
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ steps.get_dotnet_version.outputs.DOTNET_VERSION }}
+
+      - name: Prepare Version
+        id: prep_step
+        run: |
+          FULL_TAG="${{ steps.get_tag.outputs.TAG }}"
+          VERSION_WITH_PRERELEASE=${FULL_TAG#v}
+          VERSION=${VERSION_WITH_PRERELEASE%%-*}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+          if git describe --tags --abbrev=0 @^ >/dev/null 2>&1; then
+            COMMIT_RANGE=$(git describe --tags --abbrev=0 @^)..@
+          else
+            COMMIT_RANGE=$(git rev-list --max-parents=0 HEAD)..@
+          fi
+          
+          CHANGELOG=$(git log "$COMMIT_RANGE" --oneline --pretty=format:"- %s (%h)")
+          if [[ -z "$CHANGELOG" ]]; then
+            CHANGELOG="- No changes in this release."
+          fi
+
+          mkdir -p ./artifacts
+          echo -e "$CHANGELOG" > ./artifacts/changelog.md
+
+      - name: Build Plugin
+        run: |
+          VERSION="${{ steps.prep_step.outputs.VERSION }}"
+          dotnet publish ./Jellyfin.Plugin.ThemeSongs/Jellyfin.Plugin.ThemeSongs.csproj \
+            --configuration Release \
+            --output ./publish_output \
+            -p:Version="$VERSION" \
+            -p:AssemblyVersion="$VERSION.0" \
+            -p:FileVersion="$VERSION.0"
+
+      - name: Get Target ABI
+        id: get_abi
+        run: |
+          TARGET_ABI=$(grep 'targetAbi:' ./build.yaml | cut -d'"' -f2)
+          echo "TARGET_ABI=$TARGET_ABI" >> $GITHUB_OUTPUT
+
+      - name: Package Plugin
+        id: package_plugin
+        run: |
+          VERSION="${{ steps.prep_step.outputs.VERSION }}"
+          TARGET_ABI="${{ steps.get_abi.outputs.TARGET_ABI }}"
+          CHANGELOG=$(cat ./artifacts/changelog.md)
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          ZIP_NAME="theme-songs_${VERSION}.0.zip"
+
+          jq -n \
+            --arg version "$VERSION.0" \
+            --arg name "Theme Songs" \
+            --arg guid "ddb5eacb-4557-4882-a9b6-d6a91f8d1ebd" \
+            --arg overview "Download theme songs for movies and shows." \
+            --arg owner "attractivetoad" \
+            --arg category "General" \
+            --arg targetAbi "$TARGET_ABI" \
+            --arg timestamp "$TIMESTAMP" \
+            --arg changelog "$CHANGELOG" \
+            '{name: $name, guid: $guid, overview: $overview, owner: $owner, category: $category, version: $version, targetAbi: $targetAbi, timestamp: $timestamp, changelog: $changelog}' \
+            > ./publish_output/meta.json
+
+          cd ./publish_output
+          zip -r "../artifacts/${ZIP_NAME}" Jellyfin.Plugin.ThemeSongs.dll meta.json
+          cd ..
+          
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact
+          path: |
+            ./artifacts/changelog.md
+            ./artifacts/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+
+      - name: Create Checksums
+        run: |
+          for file in ./*.zip; do
+            md5sum "${file}" > "${file}.md5"
+            sha256sum "${file}" > "${file}.sha256"
+          done
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "./*"
+          bodyFile: "./changelog.md"
+          tag: ${{ needs.build.outputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: "main"
+
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+
+      - name: Update meta.json
+        env:
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          ZIP_NAME: ${{ needs.build.outputs.zip_name }}
+          TARGET_ABI: ${{ needs.build.outputs.target_abi }}
+        run: |
+          VERSION_WITH_PRERELEASE=${RELEASE_TAG#v}
+          VERSION=${VERSION_WITH_PRERELEASE%%-*}
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${ZIP_NAME}"
+          
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip")
+          CHECKSUM=$(md5sum "$ZIP_FILE" | cut -d' ' -f1)
+          CHANGELOG=$(cat changelog.md)
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          jq \
+            --arg version "$VERSION.0" \
+            --arg changelog "$CHANGELOG" \
+            --arg targetAbi "$TARGET_ABI" \
+            --arg sourceUrl "$DOWNLOAD_URL" \
+            --arg checksum "$CHECKSUM" \
+            --arg timestamp "$TIMESTAMP" \
+            '. + {version: $version, changelog: $changelog, targetAbi: $targetAbi, sourceUrl: $sourceUrl, checksum: $checksum, timestamp: $timestamp}' \
+            meta.json > meta.tmp && mv meta.tmp meta.json
+
+      - name: Commit Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add meta.json
+          if ! git diff --staged --quiet; then
+            git commit -m "ci: Update meta.json for release ${{ needs.build.outputs.tag }}"
+            git push
+          fi

@@ -1,0 +1,19 @@
+---
+name: "Theme Songs"
+guid: "ddb5eacb-4557-4882-a9b6-d6a91f8d1ebd"
+version: "1.0.0.0"
+targetAbi: "10.10.0.0"
+framework: "net8.0"
+overview: "Automatically downloads theme songs for your media"
+description: >
+  Download theme songs for movies and shows automatically.
+  This plugin integrates with your Jellyfin media library to
+  fetch and organize theme songs for your favorite content.
+category: "General"
+owner: "attractivetoad"
+artifacts:
+- "Jellyfin.Plugin.ThemeSongs.dll"
+changelog: >
+  Initial release of Theme Songs plugin.
+  Features include automatic theme song detection and download,
+  integration with media libraries, and seamless playback.

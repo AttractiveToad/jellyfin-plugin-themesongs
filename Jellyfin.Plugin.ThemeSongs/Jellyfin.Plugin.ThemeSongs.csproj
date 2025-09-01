@@ -9,7 +9,6 @@
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
     <CodeAnalysisRuleSet>../jellyfin.ruleset</CodeAnalysisRuleSet>
     <CopyLocalRuntimeTargetAssets>false</CopyLocalRuntimeTargetAssets>
-
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,12 +32,6 @@
   <ItemGroup>
     <None Remove="Configuration\configPage.html" />
     <EmbeddedResource Include="Configuration\configPage.html" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="../meta.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
   <Target Name="FilterRuntimeAssets" BeforeTargets="Build">

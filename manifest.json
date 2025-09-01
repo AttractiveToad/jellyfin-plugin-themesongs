@@ -1,0 +1,21 @@
+[
+  {
+    "guid": "ddb5eacb-4557-4882-a9b6-d6a91f8d1ebd",
+    "name": "Theme Songs",
+    "owner": "attractivetoad",
+    "category": "General",
+    "overview": "Automatically downloads theme songs for your media",
+    "description": "Download theme songs for movies and shows automatically. This plugin integrates with your Jellyfin media library to fetch and organize theme songs for your favorite content.",
+    "imageUrl": "https://raw.githubusercontent.com/attractivetoad/jellyfin-plugin-themesongs/master/themesongs.png",
+    "versions": [
+      {
+        "version": "1.0.0.0",
+        "changelog": "Initial release of Theme Songs plugin. Features include automatic theme song detection and download, integration with media libraries, and seamless playback.",
+        "targetAbi": "10.8.0.0",
+        "sourceUrl": "https://github.com/attractivetoad/jellyfin-plugin-themesongs/releases/download/v1.0.0/themesongs_1.0.0.0.zip",
+        "checksum": "placeholder-checksum-will-be-generated",
+        "timestamp": "2025-09-01T12:00:00Z"
+      }
+    ]
+  }
+]

@@ -10,11 +10,11 @@
     "versions": [
       {
         "version": "1.0.0.0",
-        "changelog": "Initial release of Theme Songs plugin. Features include automatic theme song detection and download, integration with media libraries, and seamless playback.",
-        "targetAbi": "10.8.0.0",
-        "sourceUrl": "https://github.com/attractivetoad/jellyfin-plugin-themesongs/releases/download/v1.0.0/themesongs_1.0.0.0.zip",
-        "checksum": "placeholder-checksum-will-be-generated",
-        "timestamp": "2025-09-01T12:00:00Z"
+        "changelog": "- Add initial plugin entry to `manifest.json` with Theme Songs plugin details (87bffb5)\n- Update README.md with placeholder content (5e4df35)\n- Add `manifest.json` as part of the project configuration files (e27c435)\n- Enhance publish workflow with detailed comments and improved manifest update process using `jq`. (ade94e8)\n- Simplify publish workflow by removing redundant comments and updating branch reference (369ea44)\n- Update publish workflow to improve artifact handling and manifest update process (d991652)\n- Set up project scaffolding with build pipeline configuration and release workflow (f453f4d)",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://github.com/AttractiveToad/jellyfin-plugin-themesongs/releases/download/v1.0.0/theme-songs_1.0.0.0.zip",
+        "checksum": "891dc75d38b4b3682094dce7825185e5",
+        "timestamp": "2025-09-01T20:00:14Z"
       }
     ]
   }
